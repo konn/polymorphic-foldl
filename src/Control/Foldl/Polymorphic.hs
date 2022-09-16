@@ -487,13 +487,9 @@ handles1 k (FoldM step begin done) = FoldM step' begin done
         ( appCompactEndoM
             . getConst
             . k
-              ( Const
-                  . CompactEndoM
-                  . flip
-                    ( \case
-                        StNothing -> const begin
-                        StJust x -> step x
-                    )
+              ( Const . CompactEndoM . flip \case
+                  StNothing -> const begin
+                  StJust x -> step x
               )
         )
         . StJust
