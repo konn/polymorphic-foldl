@@ -465,8 +465,8 @@ sum = FoldM (fmap pure . (+)) (pure 0) pure
 >>> fold1 (handles1 folded1 list) $ (9 :| [1,2,3]) :| [4 :| [], 5 :| [6..8]]
 [9,1,2,3,4,5,6,7,8]
 
->>> foldOver1 (folded1) list $ (10 :| [1,2,3]) :| [4 :| [], 5 :| [6..8]]
-[10 :| [1,2,3],4 :| [],5 :| [6,7,8]]
+>>> fold (handles1 folded1 list) $ [10 :| [1,2,3], 4 :| [], 5 :| [6..8]]
+[10,1,2,3,4,5,6,7,8]
 -}
 
 data AFoldM1 m a b where
@@ -479,8 +479,7 @@ viewFoldM1 =
       AFoldM1 step (\ !a -> do !x <- mx; step x a) done
     (FoldM1 f g h) -> AFoldM1 f g h
 
--- Sad... we want to throw 'Applicative' away...
-handles1 :: forall l m a b r. Applicative m => HandlerM1 m a b -> FolderM l m b r -> FolderM L1 m a r
+handles1 :: forall l m a b r. HandlerM1 m a b -> FolderM l m b r -> FolderM l m a r
 handles1 k (FoldM step begin done) = FoldM step' begin done
   where
     step' =
@@ -499,21 +498,14 @@ handles1 k (FoldM step begin done) = FoldM step' begin done
         )
         . StJust
 handles1 k (FoldM1 step (begin :: b -> m x) done) =
-  FoldM step' (pure StNothing) (done . SMaybe.fromJust) -- it's the shame we need @fromJust@ here...
+  FoldM1 (remap . StJust) (remap StNothing) done
   where
-    step' :: SMaybe.Maybe x -> a -> m (StMaybe x)
-    step' =
-      fmap (fmap SMaybe.Just)
-        . flip
-          ( appCompactEndoM
-              . getConst
-              . k
-                ( Const
-                    . CompactEndoM
-                    . flip
-                      ( \case
-                          StNothing -> begin
-                          StJust x -> step x
-                      )
-                )
-          )
+    remap =
+      flip $
+        appCompactEndoM
+          . getConst
+          . k
+            ( Const . CompactEndoM . flip \case
+                StNothing -> begin
+                StJust x -> step x
+            )
